@@ -25,6 +25,26 @@ def check_url(url):
 	else:
 		return True
 
+def unpack_dict(post_dict):
+	"""Receives a dictionary describing a post and returns
+		post object.
+
+	xmlrpclib returns a post as a dictionary. The dictionary looks
+	something like this:
+	{'title': 'the_title', 'description':'the_body_summary', ...}
+	The keys of this dictionary are the same as the attributes of the
+	class Post. For easier handling, this dictionary is transformed 
+	into an object of class Post and returned"""
+	
+	p = Post( title = post_dict['title'],
+			  description = post_dict['description'],
+			  dateCreated = post_dict['dateCreated'],
+			  categories = post_dict['categories'],
+			  mt_keywords = post_dict['mt_keywords'],
+			  mt_text_more = post_dict['mt_text_more'] )
+	# Return the post object
+	return p
+
 class Wordpress(object):
 	"""Defines the Wordpress blog."""
 	
@@ -60,10 +80,46 @@ class Wordpress(object):
 
 	def newPost(self, post):
 		"""Publish a post described by the post object"""
-		post_id = self.server.metaWeblog.newPost(self.blog_id, self.wp_user, 
+		try:
+			post_id = self.server.metaWeblog.newPost(self.blog_id, self.wp_user, 
 						self.wp_pass, post.get_dict(), post.get_status())
+		except xmlrpclib.Fault, arg:
+			print "A Fault occured"
+			print "FaultCode: %d" % arg.faultCode
+			print "FaultString: %s" % arg.faultString
+		except xmlrpclib.ProtocolError, arg:
+			print "%d: %s", (arg.errcode, arg.errmsg)
+		else:
+			return post_id
 
+	def getRecentPosts(self):
+		"""Gets a list of recent posts to the blog.
+
+		The list is of Post objects created for every post dictionary
+		obtained from the remote procedure call xmlrpclib.metaWeblog.
+		getRecentPosts. A list of dictionaries is obtained.
+		"""
+
+		try:
+			self.post_lists = self.server.metaWeblog.getRecentPosts(self.blog_id,
+								self.wp_user, self.wp_pass)
+		except:
+			print "A Fault occured"
+			print "FaultCode: %d" % arg.faultCode
+			print "FaultString: %s" % arg.faultString
 			
+		except xmlrpclib.ProtocolError, arg:
+			print "%d: %s", (arg.errcode, arg.errmsg)
+		else:
+			# iterate over everypost one by one
+			self.post_obj_list = []
+			for post in self.post_lists:
+				# Call a helper function unpack_dict(post_dict)
+				# It returns a Post object 
+				post_obj = unpack_dict(post)
+				self.post_obj_list.append(post_obj)
+			
+			return self.post_obj_list
 
 class Post(object):
 	"""Defines a blog Post which can be passed to the blog.
@@ -73,7 +129,7 @@ class Post(object):
 	The Post object can be published by passing it to a Wordpress instance.
 	"""
 
-	def __init__(self, title, description, categories, mt_keywords, 
+	def __init__(self, title, description, categories=[], mt_keywords=[], 
 	                        dateCreated = None, mt_text_more = ''):
 	    """Initializes a new Post.
 	    
@@ -130,8 +186,9 @@ class Post(object):
 			}
 		return self.data
 		
+	def __str__(self):
+		return self.title
 
-
+	def __repr__(self):
+		return self.title
 		
-		
-
